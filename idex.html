@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jax Packs Delivery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .fade-in { animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .select-bounce:active { transform: scale(0.96); transition: 0.1s; }
+        /* Prevent body scroll when modal is open */
+        .modal-open { overflow: hidden; }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans min-h-screen">
+
+    <!-- AGE GATE -->
+    <div id="age-gate" class="fixed inset-0 bg-zinc-950 flex items-center justify-center p-4 z-[100]">
+        <div class="bg-zinc-900 border border-emerald-500/30 p-8 rounded-2xl max-w-md w-full text-center shadow-2xl">
+            <i data-lucide="shield-check" class="w-16 h-16 text-emerald-500 mx-auto mb-6"></i>
+            <h1 class="text-3xl font-bold text-white mb-2">Are you 21 or older?</h1>
+            <p class="text-zinc-400 mb-8">You must be at least 21 years of age to view this menu.</p>
+            <div class="flex gap-4">
+                <button onclick="document.getElementById('age-gate').style.display='none'" class="flex-1 bg-emerald-500 text-zinc-950 font-bold py-3 rounded-xl">Yes, I am 21+</button>
+                <button onclick="window.location.href = 'https://google.com'" class="flex-1 bg-zinc-800 text-white font-bold py-3 rounded-xl">No</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PREMIUM VARIANT SELECTOR (MOBILE MODAL) -->
+    <div id="variant-modal" class="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-sm" onclick="closeVariantModal()"></div>
+        <div class="bg-zinc-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl border-t sm:border border-zinc-800 relative z-10 overflow-hidden fade-in shadow-2xl">
+            <div class="p-6 border-b border-zinc-800 flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold text-white" id="modal-product-name">Select Option</h3>
+                    <p class="text-zinc-500 text-sm">Choose your size/weight</p>
+                </div>
+                <button onclick="closeVariantModal()" class="p-2 hover:bg-zinc-800 rounded-full text-zinc-500"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <div id="modal-options-list" class="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+                <!-- Options injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
+        <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2 cursor-pointer" onclick="setView('shop')">
+                <div class="w-10 h-8 bg-emerald-500 rounded-lg flex items-center justify-center"><span class="text-zinc-950 font-black text-lg">JAX</span></div>
+                <span class="text-xl font-bold tracking-tight">PACKS</span>
+            </div>
+            <button onclick="setView('cart')" class="relative p-2 rounded-full hover:bg-zinc-800 text-zinc-100 transition-colors">
+                <i data-lucide="shopping-bag" class="w-6 h-6"></i>
+                <span id="cart-badge" class="absolute top-0 right-0 bg-emerald-500 text-zinc-950 text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-zinc-950 hidden">0</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6">
+        <!-- SHOP VIEW -->
+        <div id="view-shop" class="space-y-6 fade-in">
+            <div class="flex flex-col gap-4">
+                <div class="relative w-full">
+                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i>
+                    <input type="text" placeholder="Search menu..." oninput="handleSearch(this.value)" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 pl-12 pr-4 text-white focus:border-emerald-500 outline-none transition-all">
+                </div>
+                <div id="category-filters" class="flex overflow-x-auto gap-2 hide-scrollbar pb-2"></div>
+            </div>
+
+            <div id="loading-state" class="flex flex-col items-center justify-center py-20 text-emerald-500">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mb-4"></div>
+                <p class="text-zinc-500 text-sm">Fetching fresh inventory...</p>
+            </div>
+            
+            <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 hidden pb-24"></div>
+        </div>
+
+        <!-- CART & CHECKOUT VIEW -->
+        <div id="view-cart-checkout" class="max-w-2xl mx-auto fade-in hidden pb-24">
+            <div class="flex items-center gap-3 mb-6">
+                <button onclick="setView('shop')" class="p-2 hover:bg-zinc-800 rounded-full"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
+                <h2 id="cart-title" class="text-2xl font-black">Your Bag</h2>
+            </div>
+
+            <div id="empty-cart-msg" class="text-center py-20 bg-zinc-900 rounded-3xl border border-zinc-800 hidden">
+                <i data-lucide="shopping-bag" class="w-16 h-16 mx-auto mb-4 text-zinc-700"></i>
+                <h3 class="text-xl font-bold mb-2">Bag is empty</h3>
+                <p class="text-zinc-500 mb-6">Looks like you haven't added anything yet.</p>
+                <button onclick="setView('shop')" class="bg-emerald-500 text-zinc-950 font-black py-4 px-10 rounded-2xl">Start Shopping</button>
+            </div>
+
+            <div id="cart-content" class="space-y-6 hidden">
+                <!-- STEP 1: REVIEW BAG -->
+                <div id="cart-step-1" class="space-y-6">
+                    <div id="cart-items-list" class="bg-zinc-900 rounded-3xl border border-zinc-800 divide-y divide-zinc-800/50"></div>
+                    <div class="bg-zinc-900 rounded-3xl border border-zinc-800 p-6 space-y-4">
+                        <div class="flex justify-between text-zinc-400 font-medium"><span>Bag Subtotal</span><span id="cart-subtotal" class="text-white">$0</span></div>
+                        <div id="min-order-warning" class="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm font-bold hidden">
+                            Min. order for delivery is $15. Add $<span id="min-order-diff">0</span> more.
+                        </div>
+                        <button id="btn-proceed-checkout" onclick="proceedToCheckout()" class="w-full bg-emerald-500 text-zinc-950 font-black text-lg py-5 rounded-2xl select-bounce disabled:opacity-50 transition-all">Proceed to Checkout</button>
+                    </div>
+                </div>
+
+                <!-- STEP 2: FULL CHECKOUT DETAILS -->
+                <div id="cart-step-2" class="hidden space-y-6">
+                    <!-- Delivery Rules Note -->
+                    <div class="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl text-amber-200 text-sm leading-relaxed">
+                        <p class="font-bold mb-1 underline">Important Delivery Info:</p>
+                        Orders close 30 minutes before each dispatch time. You will receive an ETA via text 30 minutes before your selected route starts.
+                    </div>
+
+                    <!-- Address Section -->
+                    <div class="bg-zinc-900 rounded-3xl border border-zinc-800 p-6 space-y-4">
+                        <h3 class="text-lg font-bold flex items-center gap-2"><i data-lucide="map-pin" class="text-emerald-500 w-5 h-5"></i> Delivery Address</h3>
+                        <input type="text" id="checkout-street" placeholder="Street Address" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-4 px-4 text-white outline-none focus:border-emerald-500 transition-all">
+                        <div class="flex gap-4">
+                            <input type="text" id="checkout-city" value="Rochester" readonly class="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-4 px-4 text-zinc-400 cursor-not-allowed">
+                            <input type="text" id="checkout-zip" placeholder="ZIP Code" oninput="calculateDelivery()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-4 px-4 text-white outline-none focus:border-emerald-500 transition-all">
+                        </div>
+                        <div id="delivery-zone-result" class="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl flex justify-between hidden">
+                            <span id="zone-text" class="text-emerald-400 font-bold">Zone: Local</span>
+                            <span id="zone-fee" class="text-emerald-400 font-black">FREE</span>
+                        </div>
+                    </div>
+
+                    <!-- Preferences Section -->
+                    <div class="bg-zinc-900 rounded-3xl border border-zinc-800 p-6 space-y-6">
+                        <div>
+                            <h3 class="text-lg font-bold mb-4">Select Dispatch Route</h3>
+                            <div class="grid grid-cols-3 gap-2" id="route-buttons">
+                                <button onclick="setRoute('3:00 PM')" id="route-btn-0" class="py-4 rounded-xl font-black border transition-all text-sm bg-emerald-500 text-zinc-950 border-emerald-500">3:00 PM</button>
+                                <button onclick="setRoute('6:00 PM')" id="route-btn-1" class="py-4 rounded-xl font-black border transition-all text-sm bg-zinc-950 text-zinc-400 border-zinc-800">6:00 PM</button>
+                                <button onclick="setRoute('9:00 PM')" id="route-btn-2" class="py-4 rounded-xl font-black border transition-all text-sm bg-zinc-950 text-zinc-400 border-zinc-800">9:00 PM</button>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold mb-4">Payment Method</h3>
+                            <div class="grid grid-cols-2 gap-2" id="payment-buttons">
+                                <button onclick="setPayment('Cash')" id="pay-btn-0" class="py-4 rounded-xl font-black border transition-all bg-zinc-800 text-white border-zinc-600">Cash</button>
+                                <button onclick="setPayment('CashApp')" id="pay-btn-1" class="py-4 rounded-xl font-black border transition-all bg-zinc-950 text-zinc-500 border-zinc-800">CashApp</button>
+                                <button onclick="setPayment('Venmo')" id="pay-btn-2" class="py-4 rounded-xl font-black border transition-all bg-zinc-950 text-zinc-500 border-zinc-800">Venmo</button>
+                                <button onclick="setPayment('Apple Pay')" id="pay-btn-3" class="py-4 rounded-xl font-black border transition-all bg-zinc-950 text-zinc-500 border-zinc-800">Apple Pay</button>
+                            </div>
+                        </div>
+                        <div class="pt-4 border-t border-zinc-800">
+                            <label class="flex items-center gap-3 cursor-pointer" onclick="toggleNewCustomer()">
+                                <div id="new-cust-box" class="w-6 h-6 rounded border bg-zinc-950 border-zinc-700 flex items-center justify-center transition-colors">
+                                    <i data-lucide="check" id="new-cust-check" class="w-4 h-4 text-zinc-950 hidden"></i>
+                                </div>
+                                <span class="font-bold text-sm">I am a New Customer (ID Required)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Final Action -->
+                    <div class="bg-zinc-900 rounded-3xl border border-emerald-500/30 p-6 space-y-4 shadow-xl">
+                        <div class="flex justify-between text-zinc-400 font-medium"><span>Subtotal</span><span id="final-subtotal"></span></div>
+                        <div class="flex justify-between text-zinc-400 font-medium"><span>Delivery</span><span id="final-fee"></span></div>
+                        <div class="pt-4 border-t border-zinc-800 flex justify-between items-center">
+                            <span class="text-xl font-black">Total</span>
+                            <span class="text-3xl font-black text-emerald-400" id="final-total">--</span>
+                        </div>
+                        <button id="btn-send-dispatch" onclick="submitOrder()" disabled class="w-full bg-emerald-500 text-zinc-950 font-black text-lg py-5 rounded-2xl select-bounce disabled:opacity-50 shadow-lg shadow-emerald-500/20">Send Order via Text</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- SUCCESS TOAST -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-500 text-zinc-950 px-6 py-3 rounded-full font-black shadow-2xl z-[90] flex items-center gap-2 transform translate-y-24 transition-transform duration-300">
+        <i data-lucide="check-circle" class="w-5 h-5"></i>
+        <span>Added to Bag</span>
+    </div>
+
+    <script>
+        const DISPATCH_PHONE = "5852692300";
+        const MIN_ORDER = 15;
+        const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSYNaTN_r8_1_yaUrRiIIX4BgOTiX_Xt2xawqjoyRTJGHy5TUWUMvs_7dDaWq3dAjc9lUG34uyT38me/pub?output=csv';
+
+        let inventory = [];
+        let cart = [];
+        let activeCategory = "All";
+        let searchQuery = "";
+        let selectedVariants = {}; 
+        let checkoutForm = { route: '3:00 PM', payment: 'Cash', isNewCustomer: false };
+        let deliveryInfo = { fee: null, zone: null };
+
+        // CSV Parser
+        function parseCSV(str) {
+            const arr = []; let quote = false; let row = 0, col = 0;
+            for (let c = 0; c < str.length; c++) {
+                let cc = str[c], nc = str[c+1];
+                arr[row] = arr[row] || []; arr[row][col] = arr[row][col] || '';
+                if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
+                if (cc == '"') { quote = !quote; continue; }
+                if (cc == ',' && !quote) { ++col; continue; }
+                if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
+                if (cc == '\n' && !quote) { ++row; col = 0; continue; }
+                arr[row][col] += cc;
+            }
+            if (arr.length === 0) return [];
+            const headers = arr[0].map(h => h.trim().toLowerCase());
+            return arr.slice(1).map(row => {
+                const obj = {};
+                headers.forEach((h, i) => obj[h] = row[i] ? row[i].trim() : '');
+                return obj;
+            }).filter(item => item.name || item.title);
+        }
+
+        // Init App
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (window.lucide) lucide.createIcons();
+            try {
+                const res = await fetch(SHEET_URL);
+                const csvText = await res.text();
+                const data = parseCSV(csvText);
+                inventory = data.map((item, idx) => {
+                    let variants = [];
+                    const bulk = item.prices || item.bulk_pricing || '';
+                    if (bulk) {
+                        bulk.split(',').forEach(p => {
+                            const bits = p.split('-');
+                            if(bits.length >= 2) variants.push({ 
+                                label: bits[0].trim(), 
+                                display: bits[1].trim(), 
+                                price: parseFloat(bits[1].replace(/[^0-9.]/g, '')) 
+                            });
+                        });
+                    }
+                    const pObj = {
+                        id: String(item.id || idx),
+                        name: item.title || item.name || 'Product',
+                        category: item.category || 'Other',
+                        price: parseFloat((item.price || '0').replace(/[^0-9.]/g, '')),
+                        description: item.desc || item.description || '',
+                        variantOptions: variants,
+                        image: item.img || item.image || `https://placehold.co/400x400/27272a/10b981?text=Jax`
+                    };
+                    if (variants.length > 0) selectedVariants[pObj.id] = variants[0];
+                    return pObj;
+                });
+            } catch (e) { console.error("Error loading sheet:", e); }
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('product-grid').classList.remove('hidden');
+            renderCategories();
+            renderShop();
+        });
+
+        function renderCategories() {
+            const cats = ["All", ...new Set(inventory.map(i => i.category))];
+            document.getElementById('category-filters').innerHTML = cats.map(c => `
+                <button onclick="setCategory('${c}')" class="px-6 py-3 rounded-xl whitespace-nowrap font-bold transition-all ${activeCategory === c ? 'bg-emerald-500 text-zinc-950 scale-105' : 'bg-zinc-900 text-zinc-400'}">${c}</button>
+            `).join('');
+        }
+
+        function setCategory(c) { activeCategory = c; renderCategories(); renderShop(); }
+        function handleSearch(v) { searchQuery = v; renderShop(); }
+
+        function openVariantModal(pid) {
+            const p = inventory.find(i => i.id == pid);
+            document.getElementById('modal-product-name').innerText = p.name;
+            document.getElementById('modal-options-list').innerHTML = p.variantOptions.map(o => {
+                const active = selectedVariants[pid]?.label === o.label;
+                return `
+                    <button onclick="selectVariant('${pid}', '${o.label}')" class="w-full flex items-center justify-between p-5 rounded-2xl border transition-all select-bounce ${active ? 'bg-emerald-500/10 border-emerald-500' : 'bg-zinc-950 border-zinc-800'}">
+                        <div class="text-left"><div class="font-black text-lg text-white">${o.label}</div><div class="text-xs text-zinc-500">In Stock</div></div>
+                        <div class="text-xl font-black ${active ? 'text-emerald-400' : 'text-zinc-300'}">${o.display}</div>
+                    </button>`;
+            }).join('');
+            document.getElementById('variant-modal').classList.remove('hidden');
+            document.body.classList.add('modal-open');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function selectVariant(pid, label) {
+            const p = inventory.find(i => i.id == pid);
+            selectedVariants[pid] = p.variantOptions.find(o => o.label === label);
+            renderShop();
+            closeVariantModal();
+        }
+
+        function closeVariantModal() { 
+            document.getElementById('variant-modal').classList.add('hidden'); 
+            document.body.classList.remove('modal-open');
+        }
+
+        function renderShop() {
+            const grid = document.getElementById('product-grid');
+            const filtered = inventory.filter(i => (activeCategory === "All" || i.category === activeCategory) && i.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            
+            grid.innerHTML = filtered.map(p => {
+                const variant = selectedVariants[p.id];
+                const displayPrice = variant ? variant.display : `$${p.price}`;
+                const hasVariants = p.variantOptions.length > 0;
+                
+                return `
+                <div class="bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 p-4 flex flex-col group transition-all hover:border-zinc-700">
+                    <div class="relative overflow-hidden rounded-2xl mb-4">
+                        <img src="${p.image}" class="aspect-square w-full object-cover bg-zinc-800 group-hover:scale-105 transition-transform duration-500">
+                        ${p.category ? `<div class="absolute top-2 left-2 bg-zinc-950/80 backdrop-blur px-3 py-1 rounded-full text-[10px] font-black uppercase text-emerald-400 border border-zinc-800">${p.category}</div>` : ''}
+                    </div>
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-black text-lg text-white leading-tight">${p.name}</h3>
+                        <span class="text-emerald-400 font-black text-lg">${displayPrice}</span>
+                    </div>
+                    <p class="text-zinc-500 text-xs mb-4 line-clamp-2 h-8 leading-relaxed">${p.description}</p>
+                    
+                    ${hasVariants ? `
+                        <button onclick="openVariantModal('${p.id}')" class="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-4 mb-3 flex justify-between items-center text-sm font-black transition-all hover:bg-zinc-800 select-bounce">
+                            <span>Size: ${variant.label}</span>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-emerald-500"></i>
+                        </button>
+                    ` : ''}
+                    
+                    <button onclick="addToCart('${p.id}')" class="w-full bg-emerald-500 text-zinc-950 font-black py-4 rounded-2xl select-bounce shadow-lg shadow-emerald-500/10">Add to Bag</button>
+                </div>`;
+            }).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // Cart Actions
+        function showToast() {
+            const t = document.getElementById('toast');
+            t.classList.remove('translate-y-24');
+            setTimeout(() => t.classList.add('translate-y-24'), 2000);
+        }
+
+        function addToCart(pid) {
+            const p = inventory.find(i => i.id == pid);
+            const variant = selectedVariants[pid];
+            const cid = variant ? `${pid}-${variant.label}` : `${pid}`;
+            const ex = cart.find(i => i.cid === cid);
+            
+            if(ex) {
+                ex.qty++;
+            } else {
+                cart.push({ 
+                    ...p, 
+                    cid, 
+                    variantName: variant ? variant.label : '', 
+                    price: variant ? variant.price : p.price, 
+                    qty: 1 
+                });
+            }
+            updateCartUI();
+            showToast();
+        }
+
+        function updateCartQty(cid, delta) {
+            const item = cart.find(x => x.cid === cid);
+            if(item) {
+                item.qty += delta;
+                if(item.qty <= 0) cart = cart.filter(x => x.cid !== cid);
+            }
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            const subtotal = cart.reduce((s, i) => s + (i.price * i.qty), 0);
+            const badge = document.getElementById('cart-badge');
+            badge.innerText = cart.reduce((s, i) => s + i.qty, 0);
+            badge.classList.toggle('hidden', cart.length === 0);
+
+            document.getElementById('empty-cart-msg').classList.toggle('hidden', cart.length > 0);
+            document.getElementById('cart-content').classList.toggle('hidden', cart.length === 0);
+            
+            document.getElementById('cart-items-list').innerHTML = cart.map(i => `
+                <div class="flex items-center gap-4 p-4">
+                    <img src="${i.image}" class="w-14 h-14 rounded-xl object-cover bg-zinc-800">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-black text-white text-sm truncate">${i.name}</div>
+                        <div class="text-[10px] text-emerald-500 uppercase font-bold tracking-widest">${i.variantName || 'Standard'}</div>
+                        <div class="text-zinc-400 font-bold text-xs">$${i.price.toFixed(2)}</div>
+                    </div>
+                    <div class="flex items-center gap-3 bg-zinc-950 rounded-xl p-1.5 border border-zinc-800">
+                        <button onclick="updateCartQty('${i.cid}', -1)" class="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-white transition-colors"><i data-lucide="minus" class="w-3 h-3"></i></button>
+                        <span class="font-black text-xs w-4 text-center">${i.qty}</span>
+                        <button onclick="updateCartQty('${i.cid}', 1)" class="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-white transition-colors"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                    </div>
+                </div>`).join('');
+
+            document.getElementById('cart-subtotal').innerText = `$${subtotal.toFixed(2)}`;
+            const warn = document.getElementById('min-order-warning');
+            const canProceed = subtotal >= MIN_ORDER;
+            warn.classList.toggle('hidden', canProceed);
+            if(!canProceed) document.getElementById('min-order-diff').innerText = (MIN_ORDER - subtotal).toFixed(2);
+            document.getElementById('btn-proceed-checkout').disabled = !canProceed;
+
+            updateTotals();
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // Checkout Logic
+        function setView(v) {
+            document.getElementById('view-shop').classList.add('hidden');
+            document.getElementById('view-cart-checkout').classList.add('hidden');
+            if(v === 'shop') {
+                document.getElementById('view-shop').classList.remove('hidden');
+            } else {
+                document.getElementById('view-cart-checkout').classList.remove('hidden');
+                document.getElementById('cart-step-1').classList.remove('hidden');
+                document.getElementById('cart-step-2').classList.add('hidden');
+                document.getElementById('cart-title').innerText = 'Your Bag';
+            }
+            window.scrollTo(0,0);
+        }
+
+        function proceedToCheckout() {
+            document.getElementById('cart-step-1').classList.add('hidden');
+            document.getElementById('cart-step-2').classList.remove('hidden');
+            document.getElementById('cart-title').innerText = 'Delivery Details';
+            window.scrollTo(0,0);
+        }
+
+        function calculateDelivery() {
+            const zip = document.getElementById('checkout-zip').value.trim();
+            if(zip.length < 5) {
+                deliveryInfo = { fee: null, zone: null };
+                document.getElementById('delivery-zone-result').classList.add('hidden');
+                updateTotals();
+                return;
+            }
+            const isLocal = zip.startsWith('146');
+            deliveryInfo = { fee: isLocal ? 0 : 10, zone: isLocal ? 'Local (Rochester)' : 'Extended Zone' };
+            document.getElementById('delivery-zone-result').classList.remove('hidden');
+            document.getElementById('zone-text').innerText = `Zone: ${deliveryInfo.zone}`;
+            document.getElementById('zone-fee').innerText = deliveryInfo.fee === 0 ? 'FREE' : `$${deliveryInfo.fee}`;
+            updateTotals();
+        }
+
+        function updateTotals() {
+            const subtotal = cart.reduce((s, i) => s + (i.price * i.qty), 0);
+            document.getElementById('final-subtotal').innerText = `$${subtotal.toFixed(2)}`;
+            if(deliveryInfo.fee !== null) {
+                document.getElementById('final-fee').innerText = deliveryInfo.fee === 0 ? 'FREE' : `$${deliveryInfo.fee}`;
+                document.getElementById('final-total').innerText = `$${(subtotal + deliveryInfo.fee).toFixed(2)}`;
+                document.getElementById('btn-send-dispatch').disabled = false;
+            } else {
+                document.getElementById('final-fee').innerText = 'Enter ZIP above';
+                document.getElementById('final-total').innerText = '--';
+                document.getElementById('btn-send-dispatch').disabled = true;
+            }
+        }
+
+        function setRoute(r) { 
+            checkoutForm.route = r; 
+            ['3:00 PM','6:00 PM','9:00 PM'].forEach((x, i) => {
+                const btn = document.getElementById(`route-btn-${i}`);
+                btn.className = x === r 
+                    ? "py-4 rounded-xl font-black border transition-all text-sm bg-emerald-500 text-zinc-950 border-emerald-500" 
+                    : "py-4 rounded-xl font-black border transition-all text-sm bg-zinc-950 text-zinc-400 border-zinc-800";
+            });
+        }
+
+        function setPayment(p) { 
+            checkoutForm.payment = p; 
+            ['Cash','CashApp','Venmo','Apple Pay'].forEach((x, i) => {
+                const btn = document.getElementById(`pay-btn-${i}`);
+                btn.className = x === p 
+                    ? "py-4 rounded-xl font-black border transition-all bg-zinc-800 text-white border-zinc-600" 
+                    : "py-4 rounded-xl font-black border transition-all bg-zinc-950 text-zinc-500 border-zinc-800";
+            });
+        }
+
+        function toggleNewCustomer() { 
+            checkoutForm.isNewCustomer = !checkoutForm.isNewCustomer; 
+            document.getElementById('new-cust-check').classList.toggle('hidden', !checkoutForm.isNewCustomer); 
+            document.getElementById('new-cust-box').className = checkoutForm.isNewCustomer 
+                ? "w-6 h-6 rounded border bg-emerald-500 border-emerald-500 flex items-center justify-center transition-colors" 
+                : "w-6 h-6 rounded border bg-zinc-950 border-zinc-700 flex items-center justify-center transition-colors"; 
+        }
+
+        function submitOrder() {
+            const street = document.getElementById('checkout-street').value.trim();
+            const zip = document.getElementById('checkout-zip').value.trim();
+            
+            if(!street || !zip) {
+                alert("Please enter a delivery address.");
+                return;
+            }
+
+            let msg = `🛒 NEW ORDER\n----------\n`;
+            cart.forEach(i => {
+                msg += `• ${i.qty}x ${i.name} ${i.variantName ? `(${i.variantName})` : ''} - $${(i.price*i.qty).toFixed(2)}\n`;
+            });
+            
+            const total = cart.reduce((s, i) => s + (i.price * i.qty), 0) + deliveryInfo.fee;
+            
+            msg += `\n📍 ADDRESS:\n${street}, Rochester ${zip}\n`;
+            msg += `\n🕒 ROUTE: ${checkoutForm.route}\n`;
+            msg += `💳 PAYMENT: ${checkoutForm.payment}\n`;
+            msg += `💰 TOTAL: $${total.toFixed(2)}\n`;
+            
+            if(checkoutForm.isNewCustomer) msg += `\n⚠️ NEW CUSTOMER: ID Ready`;
+            
+            msg += `\n\nI understand orders close 30m before dispatch and I will receive an ETA text 30m before the route starts.`;
+
+            // Open SMS app
+            window.location.href = `sms:${DISPATCH_PHONE}?&body=${encodeURIComponent(msg)}`;
+        }
+    </script>
+</body>
+</html>
